@@ -1,8 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
-import threading
-import pygame
+
 from data_saving import save_data_to_csv
 
 app = Flask(__name__)

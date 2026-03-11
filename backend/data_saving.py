@@ -4,8 +4,10 @@ import csv
 
 # format each row as a list [number, name, etc]
 # save the data to a csv file called results.csv
+
 def save_data_to_csv(data):
-    with open('results.csv', 'w', newline='') as csvfile:
+    # Changed 'w' to 'a' to append data instead of overwriting
+    with open('results.csv', 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(data)
 
@@ -20,4 +22,3 @@ def delete_last_row_from_csv():
     with open('results.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerows(rows)
-
