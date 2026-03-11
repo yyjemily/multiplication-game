@@ -13,6 +13,7 @@ def get_questions():
     """Generates a list of all unique multiplication questions."""
     questions = []
     
+    #MAYBE CONSIDER ASKING THEM TO PUNCH IN THE ANSWER TO QUESTION PRIOR  -- BUT cut if off early so no brain fatigue
     # Loop from 2 to 12 for the first number
     for num1 in range(2, 13):
         # Loop from 'num1' to 12 for the second number.
@@ -27,7 +28,7 @@ def get_questions():
     random.shuffle(questions)
     
     # This will generate exactly 66 unique questions (from 2x2 up to 12x12)
-    return jsonify(questions)#jsonify send it over to the REACT front end 
+    return jsonify(questions) #jsonify send it over to the REACT front end 
 
 @app.route('/api/save_result', methods=['POST']) #POST sends to front end to be processed 
 def save_result():
