@@ -1,15 +1,17 @@
-import axios from "axios";
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import FormPage from "./pages/FormPage";
+import QuestionPage from "./pages/QuestionPage";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
-
-/*
-export async function sendQuery(query, useContext=false) {
-  const resp = await axios.post(`${API_BASE}/api/chat`, { query, use_context: useContext });
-  return resp.data;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* The '/' path is the default homepage */}
+        <Route path="/" element={<FormPage />} />
+        {/* The '/questions' path is where the game lives */}
+        <Route path="/questions" element={<QuestionPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
-
-export async function addDoc(title, content) {
-  const resp = await axios.post(`${API_BASE}/api/embeddings_add`, { title, content });
-  return resp.data;
-}
-*/ 
