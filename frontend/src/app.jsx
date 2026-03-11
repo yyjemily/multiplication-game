@@ -1,4 +1,4 @@
-/* 
+/* This is for making an API call with a chatbot and stuffs 
 
 import React, { useState, useEffect, useRef } from "react";
 import { sendQuery, addDoc } from "./api";
