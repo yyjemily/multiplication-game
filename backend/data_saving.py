@@ -1,24 +1,23 @@
-# collecting the data and saving it to a csv file
-
+# backend/data_saving.py
 import csv
+import os
 
-# format each row as a list [number, name, etc]
-# save the data to a csv file called results.csv
+CSV_FILE = 'results.csv'
 
 def save_data_to_csv(data):
-    # Changed 'w' to 'a' to append data instead of overwriting
-    with open('results.csv', 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(data)
-
-def delete_last_row_from_csv():
-    with open('results.csv', 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        rows = list(reader)
-
-    if rows:
-        rows.pop()  # Remove the last row
-
-    with open('results.csv', 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerows(rows)
+    file_exists = os.path.isfile(CSV_FILE)
+    
+    with open(CSV_FILE, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        
+        # Write header if file doesn't exist yet
+        if not file_exists:
+            writer.writerow(['First Name', 'Last Name', 'Shown Numbers', 'User Inputs', 'Is Correct'])
+            
+        writer.writerow([
+            data.get('fname', 'Unknown'),
+            data.get('lname', 'Unknown'),
+            data.get('numbers', ''),
+            data.get('inputs', ''),
+            data.get('is_correct', False)
+        ])
