@@ -10,7 +10,6 @@ def save_data_to_csv(data):
         writer = csv.writer(file)
         
         if not file_exists:
-            # --- NEW: Changed 'Program' to 'Major' in the headers ---
             writer.writerow([
                 'First Name', 'Last Name', 'Age', 'School', 'Major', 'Gender', 'Location', 
                 'Shown Numbers', 'User Inputs', 'Score', 'Accuracy %', 

@@ -31,12 +31,12 @@ export default function QuestionPage() {
   const [totalScore, setTotalScore] = useState(0);
 
   const [inputStartTime, setInputStartTime] = useState(null);
-  
   const [roundTimes, setRoundTimes] = useState([]);
   const [totalTime, setTotalTime] = useState(0);
 
   const [notes, setNotes] = useState("");
-  const [isSoundOn, setIsSoundOn] = useState(formData?.soundEnabled ?? true);
+  // We still use the preference from the form page, but no longer have a button to change it
+  const [isSoundOn] = useState(formData?.soundEnabled ?? true);
 
   const inputRefs = useRef([]);
 
@@ -45,7 +45,6 @@ export default function QuestionPage() {
     setNumbers(randomNums);
   }, [round]);
 
-  // Phase Timer Logic
   useEffect(() => {
     if (timeLeft > 0 && (phase === "memorize" || phase === "pause")) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -61,14 +60,10 @@ export default function QuestionPage() {
     }
   }, [phase, timeLeft]);
 
-  // --- NEW: Automatically focus the first input box when the input phase starts ---
   useEffect(() => {
     if (phase === "input") {
-      // A tiny 10ms timeout ensures React has finished drawing the boxes on the screen
       setTimeout(() => {
-        if (inputRefs.current[0]) {
-          inputRefs.current[0].focus();
-        }
+        if (inputRefs.current[0]) inputRefs.current[0].focus();
       }, 10);
     }
   }, [phase]);
@@ -93,7 +88,6 @@ export default function QuestionPage() {
 
   const handleRoundSubmit = () => {
     const roundTime = (Date.now() - (inputStartTime || Date.now())) / 1000;
-    
     const updatedRoundTimes = [...roundTimes, roundTime];
     const newTotalTime = totalTime + roundTime;
 
@@ -125,7 +119,8 @@ export default function QuestionPage() {
       setPhase("memorize");
       setTimeLeft(MEMORIZE_SECONDS); 
     } else {
-      setPhase("notes");
+      // --- NEW: Go directly to the Results page after round 5 ---
+      setPhase("result");
     }
   };
 
@@ -141,11 +136,12 @@ export default function QuestionPage() {
         total_time: totalTime,
         notes: notes 
       });
-      setPhase("result"); 
+      // --- NEW: Send them back to the start form after saving ---
+      navigate("/"); 
     } catch (error) {
       console.error("Backend Save Error:", error);
       alert("Could not save to backend. Make sure your Python server is running!");
-      setPhase("result"); 
+      navigate("/"); 
     }
   };
 
@@ -154,12 +150,12 @@ export default function QuestionPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: "100vh", fontFamily: "sans-serif", textAlign: "center", backgroundColor: "#f9f9f9", padding: "20px" }}>
       
-      {phase !== "result" && (
+      {phase !== "result" && phase !== "notes" && (
         <button 
           onClick={() => navigate("/")}
           style={{ position: "absolute", top: "20px", left: "20px", padding: "10px 20px", fontSize: "1.2rem", cursor: "pointer", borderRadius: "8px", backgroundColor: "#dc3545", color: "white", border: "none" }}
         >
-          Quit & Return
+        Quit & Return
         </button>
       )}
 
@@ -206,6 +202,7 @@ export default function QuestionPage() {
         </div>
       )}
 
+      {/* --- NEW: Results display phase, showing the button to proceed to notes --- */}
       {phase === "result" && (
         <div>
           <h2 style={{ fontSize: "4rem", color: totalScore > (NUM_ITEMS * NUM_ROUNDS / 2) ? "green" : "red" }}>
@@ -217,11 +214,13 @@ export default function QuestionPage() {
           <h3 style={{ fontSize: "2rem", color: "#007bff", margin: "0 0 30px 0" }}>
             Total Time: {totalTime.toFixed(2)} seconds
           </h3>
-          <button onClick={() => navigate("/")} style={{ padding: "15px 40px", fontSize: "2rem", marginTop: "40px", cursor: "pointer", borderRadius: "10px", backgroundColor: "#007bff", color: "white", border: "none" }}>
-            Return to Start
+          <button onClick={() => setPhase("notes")} style={{ padding: "15px 40px", fontSize: "2rem", marginTop: "40px", cursor: "pointer", borderRadius: "10px", backgroundColor: "#007bff", color: "white", border: "none" }}>
+            Continue to Notes
           </button>
         </div>
       )}
+
+      {/* --- NEW: Notes phase is now at the very end, leading to the final save --- */}
       {phase === "notes" && (
         <div style={{ maxWidth: "800px", width: "100%" }}>
           <h2 style={{ fontSize: "3rem", color: "#333" }}>Session Complete!</h2>
@@ -234,10 +233,11 @@ export default function QuestionPage() {
             style={{ width: "100%", padding: "15px", fontSize: "1.5rem", borderRadius: "10px", border: "2px solid #ccc", marginBottom: "20px", resize: "vertical" }}
           />
           <button onClick={handleFinalSubmit} style={{ padding: "15px 40px", fontSize: "2rem", cursor: "pointer", borderRadius: "10px", backgroundColor: "#28a745", color: "white", border: "none" }}>
-            Save Data & View Results
+            Save Data & Return Home
           </button>
         </div>
       )}
+
     </div>
   );
 }
