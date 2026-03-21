@@ -3,11 +3,19 @@ import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const NUM_ITEMS = 10;
-const MAX_RANDOM = 10; 
 const MEMORIZE_SECONDS = 10;
 const PAUSE_SECONDS = 5;
 const NUM_ROUNDS = 5;
 const BACKEND_URL = "http://127.0.0.1:5000/api/save";
+
+// --- NEW: Hardcoded sequences so every participant gets the exact same test ---
+const FIXED_SEQUENCES = [
+  [7, 2, 9, 0, 4, 8, 3, 1, 6, 5], // Round 1
+  [5, 1, 8, 4, 9, 2, 7, 0, 3, 6], // Round 2
+  [3, 8, 0, 5, 1, 7, 4, 9, 2, 6], // Round 3
+  [9, 4, 6, 2, 8, 0, 5, 1, 7, 3], // Round 4
+  [1, 6, 3, 9, 5, 2, 8, 4, 0, 7]  // Round 5
+];
 
 export default function QuestionPage() {
   const location = useLocation();
@@ -35,14 +43,13 @@ export default function QuestionPage() {
   const [totalTime, setTotalTime] = useState(0);
 
   const [notes, setNotes] = useState("");
-  // We still use the preference from the form page, but no longer have a button to change it
   const [isSoundOn] = useState(formData?.soundEnabled ?? true);
 
   const inputRefs = useRef([]);
 
+  // --- NEW: Load the fixed sequence for the current round instead of random numbers ---
   useEffect(() => {
-    const randomNums = Array.from({ length: NUM_ITEMS }, () => Math.floor(Math.random() * MAX_RANDOM));
-    setNumbers(randomNums);
+    setNumbers(FIXED_SEQUENCES[round - 1]);
   }, [round]);
 
   useEffect(() => {
@@ -82,8 +89,25 @@ export default function QuestionPage() {
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && phase === "input") handleRoundSubmit();
+  // --- NEW: Upgraded KeyDown handler to support Backspace and Arrow keys ---
+  const handleKeyDown = (e, index) => {
+    if (e.key === "Enter" && phase === "input") {
+      handleRoundSubmit();
+    } 
+    else if (e.key === "Backspace") {
+      // If they press backspace on an empty box, jump back to the previous box
+      if (userInputs[index] === "" && index > 0) {
+        inputRefs.current[index - 1].focus();
+      }
+    } 
+    else if (e.key === "ArrowLeft" && index > 0) {
+      // Move left
+      inputRefs.current[index - 1].focus();
+    } 
+    else if (e.key === "ArrowRight" && index < NUM_ITEMS - 1) {
+      // Move right
+      inputRefs.current[index + 1].focus();
+    }
   };
 
   const handleRoundSubmit = () => {
@@ -119,7 +143,6 @@ export default function QuestionPage() {
       setPhase("memorize");
       setTimeLeft(MEMORIZE_SECONDS); 
     } else {
-      // --- NEW: Go directly to the Results page after round 5 ---
       setPhase("result");
     }
   };
@@ -136,7 +159,6 @@ export default function QuestionPage() {
         total_time: totalTime,
         notes: notes 
       });
-      // --- NEW: Send them back to the start form after saving ---
       navigate("/"); 
     } catch (error) {
       console.error("Backend Save Error:", error);
@@ -155,7 +177,7 @@ export default function QuestionPage() {
           onClick={() => navigate("/")}
           style={{ position: "absolute", top: "20px", left: "20px", padding: "10px 20px", fontSize: "1.2rem", cursor: "pointer", borderRadius: "8px", backgroundColor: "#dc3545", color: "white", border: "none" }}
         >
-        Quit & Return
+          ❌ Quit & Return
         </button>
       )}
 
@@ -191,7 +213,10 @@ export default function QuestionPage() {
                 type="text"
                 value={val}
                 onChange={(e) => handleInputChange(idx, e.target.value)}
-                onKeyDown={handleKeyDown}
+                
+                // --- NEW: Pass the 'idx' down so the function knows which box you are in ---
+                onKeyDown={(e) => handleKeyDown(e, idx)} 
+                
                 style={{ width: "80px", height: "80px", fontSize: "3rem", textAlign: "center", borderRadius: "10px", border: "2px solid #ccc" }}
               />
             ))}
@@ -202,7 +227,6 @@ export default function QuestionPage() {
         </div>
       )}
 
-      {/* --- NEW: Results display phase, showing the button to proceed to notes --- */}
       {phase === "result" && (
         <div>
           <h2 style={{ fontSize: "4rem", color: totalScore > (NUM_ITEMS * NUM_ROUNDS / 2) ? "green" : "red" }}>
@@ -220,7 +244,6 @@ export default function QuestionPage() {
         </div>
       )}
 
-      {/* --- NEW: Notes phase is now at the very end, leading to the final save --- */}
       {phase === "notes" && (
         <div style={{ maxWidth: "800px", width: "100%" }}>
           <h2 style={{ fontSize: "3rem", color: "#333" }}>Session Complete!</h2>

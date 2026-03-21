@@ -47,6 +47,7 @@ export default function FormPage() {
           <li><strong>Pause (5s):</strong> The screen clears—get ready!</li>
           <li><strong>Input:</strong> Type the numbers. Boxes auto-advance.</li>
           <li><strong>Submit:</strong> Press <strong>Enter</strong> to check and move to the next round.</li>
+          <li>You are being <strong>timed</strong> so try to complete it as fast as you can!</li>
         </ul>
       </div>
       
