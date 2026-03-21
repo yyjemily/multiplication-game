@@ -1,1 +1,12 @@
-node_modules
+# Python Virtual Environment
+backend/env/
+backend/__pycache__/
+
+# Node Dependencies
+frontend/node_modules/
+
+# Mac OS Files
+.DS_Store
+
+# User Data (prevents you from accidentally committing real player data to GitHub)
+backend/results.csv

@@ -2,170 +2,242 @@ import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 
-function QuestionPage() {
-  //navigation
+const NUM_ITEMS = 10;
+const MAX_RANDOM = 10; 
+const MEMORIZE_SECONDS = 10;
+const PAUSE_SECONDS = 5;
+const NUM_ROUNDS = 5;
+const BACKEND_URL = "http://127.0.0.1:5000/api/save";
+
+export default function QuestionPage() {
   const location = useLocation();
-  const formData = location.state?.formData || { fname: "Anonymous", lname: "" };
   const navigate = useNavigate();
 
-  //variables
-  const [questions, setQuestions] = useState([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState("");
-  const [startTime, setStartTime] = useState(null);
-  const [times, setTimes] = useState([]);
-  const [correctCount, setCorrectCount] = useState(0);
+  const formData = location.state?.formData;
+
+  useEffect(() => {
+    if (!formData) navigate("/", { replace: true });
+  }, [formData, navigate]);
+
+  const [round, setRound] = useState(1);
+  const [phase, setPhase] = useState("memorize"); 
+  const [timeLeft, setTimeLeft] = useState(MEMORIZE_SECONDS);
   
-  //audio
-  const audioRef = useRef(null);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [numbers, setNumbers] = useState([]);
+  const [userInputs, setUserInputs] = useState(Array(NUM_ITEMS).fill(""));
+  
+  const [allNumbers, setAllNumbers] = useState([]);
+  const [allUserInputs, setAllUserInputs] = useState([]);
+  const [totalScore, setTotalScore] = useState(0);
 
-  //function
-  const handleExit = () => {
-    if (window.confirm("Are you sure you want to exit the experiment early? Your data will not be saved.")) {
-      navigate("/");
-    }
-  };
+  const [inputStartTime, setInputStartTime] = useState(null);
+  const [roundTimes, setRoundTimes] = useState([]);
+  const [totalTime, setTotalTime] = useState(0);
 
-  const fetchQuestions = async () => {
-    try {
-      const response = await axios.get("http://127.0.0.1:5000/api/questions");
-      setQuestions(response.data);
-      setStartTime(Date.now());
-    } catch (error) {
-      console.error("Error fetching questions:", error);
-    }
-  };
+  const [notes, setNotes] = useState("");
+  // We still use the preference from the form page, but no longer have a button to change it
+  const [isSoundOn] = useState(formData?.soundEnabled ?? true);
 
-  const toggleMusic = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
+  const inputRefs = useRef([]);
+
+  useEffect(() => {
+    const randomNums = Array.from({ length: NUM_ITEMS }, () => Math.floor(Math.random() * MAX_RANDOM));
+    setNumbers(randomNums);
+  }, [round]);
+
+  useEffect(() => {
+    if (timeLeft > 0 && (phase === "memorize" || phase === "pause")) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (timeLeft === 0) {
+      if (phase === "memorize") {
+        setPhase("pause");
+        setTimeLeft(PAUSE_SECONDS); 
+      } else if (phase === "pause") {
+        setPhase("input");
+        setInputStartTime(Date.now());
       }
-      setIsPlaying(!isPlaying);
+    }
+  }, [phase, timeLeft]);
+
+  useEffect(() => {
+    if (phase === "input") {
+      setTimeout(() => {
+        if (inputRefs.current[0]) inputRefs.current[0].focus();
+      }, 10);
+    }
+  }, [phase]);
+
+  const handleInputChange = (index, value) => {
+    if (value !== "" && !/^\d$/.test(value)) return;
+
+    const newInputs = [...userInputs];
+    newInputs[index] = value;
+    setUserInputs(newInputs);
+
+    if (value !== "" && index < NUM_ITEMS - 1) {
+      setTimeout(() => {
+        if (inputRefs.current[index + 1]) inputRefs.current[index + 1].focus();
+      }, 10);
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const currentQuestion = questions[currentQuestionIndex];
-    const timeTaken = (Date.now() - startTime) / 1000;
-    setTimes((prev) => [...prev, timeTaken]);
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && phase === "input") handleRoundSubmit();
+  };
 
-    const isCorrect = answer.trim() === currentQuestion.answer;
-    if (isCorrect) {
-      setFeedback(`Correct! Took ${timeTaken.toFixed(2)}s.`);
-      setCorrectCount((prev) => prev + 1);
+  const handleRoundSubmit = () => {
+    const roundTime = (Date.now() - (inputStartTime || Date.now())) / 1000;
+    const updatedRoundTimes = [...roundTimes, roundTime];
+    const newTotalTime = totalTime + roundTime;
+
+    let currentRoundCorrect = 0;
+    numbers.forEach((num, idx) => {
+      if (parseInt(userInputs[idx], 10) === num) currentRoundCorrect += 1;
+    });
+
+    const updatedAllNumbers = [...allNumbers, ...numbers];
+    const updatedAllInputs = [...allUserInputs, ...userInputs];
+    const updatedTotalScore = totalScore + currentRoundCorrect;
+
+    if (isSoundOn) {
+      try {
+        const audioUrl = currentRoundCorrect === NUM_ITEMS ? "/correct.mp3" : "/wrong.mp3";
+        new Audio(audioUrl).play().catch(() => {});
+      } catch (e) { }
+    }
+
+    setAllNumbers(updatedAllNumbers);
+    setAllUserInputs(updatedAllInputs);
+    setTotalScore(updatedTotalScore);
+    setTotalTime(newTotalTime);
+    setRoundTimes(updatedRoundTimes);
+
+    if (round < NUM_ROUNDS) {
+      setRound(round + 1);
+      setUserInputs(Array(NUM_ITEMS).fill(""));
+      setPhase("memorize");
+      setTimeLeft(MEMORIZE_SECONDS); 
     } else {
-      setFeedback(`Incorrect. Answer: ${currentQuestion.answer}.`);
+      // --- NEW: Go directly to the Results page after round 5 ---
+      setPhase("result");
     }
-
-    setAnswer("");
-    setCurrentQuestionIndex((prev) => prev + 1);
-    setStartTime(Date.now());
   };
 
-  const saveGameData = async () => {
-    const accuracy = (correctCount / questions.length) * 100;
+  const handleFinalSubmit = async () => {
     try {
-      await axios.post("http://127.0.0.1:5000/api/save_result", {
-        firstName: formData.fname || "Anonymous",
-        lastName: formData.lname || "",
-        accuracy: accuracy,
-        times: times
+      await axios.post(BACKEND_URL, {
+        ...formData, 
+        numbers: allNumbers.join(","),
+        inputs: allUserInputs.join(","),
+        accuracy: totalScore,
+        total_possible: NUM_ITEMS * NUM_ROUNDS,
+        round_times: roundTimes, 
+        total_time: totalTime,
+        notes: notes 
       });
+      // --- NEW: Send them back to the start form after saving ---
+      navigate("/"); 
     } catch (error) {
-      console.error("Error saving data:", error);
+      console.error("Backend Save Error:", error);
+      alert("Could not save to backend. Make sure your Python server is running!");
+      navigate("/"); 
     }
   };
 
-  // 5. UseEffects (Watchers)
-  useEffect(() => {
-    fetchQuestions();
-  }, []);
-
-  useEffect(() => {
-    if (correctCount > 0 && correctCount % 5 === 0) {
-      const newSpeed = 1.0 + (Math.floor(correctCount / 5) * 0.25);
-      setPlaybackSpeed(newSpeed);
-      if (audioRef.current) {
-        audioRef.current.playbackRate = newSpeed;
-      }
-    }
-  }, [correctCount]);
-
-  useEffect(() => {
-    if (questions.length > 0 && currentQuestionIndex === questions.length) {
-      saveGameData();
-    }
-  }, [currentQuestionIndex, questions.length]);
-
-  // 6. UI Rendering
-  if (questions.length === 0) return <div>Loading...</div>;
-
-  if (currentQuestionIndex >= questions.length) {
-    const accuracy = (correctCount / questions.length) * 100;
-    const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
-    return (
-      <div style={{ padding: "20px", textAlign: "center", fontFamily: "Arial, sans-serif" }}>
-        <h2>Experiment Complete!</h2>
-        <p>Accuracy: {accuracy.toFixed(2)}%</p>
-        <p>Average Time: {avgTime.toFixed(2)} seconds</p>
-      </div>
-    );
-  }
+  if (!formData) return null;
 
   return (
-    <div style={{
-      maxWidth: "600px", margin: "60px auto", padding: "40px",
-      borderRadius: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
-      backgroundColor: "#ffffff", fontFamily: "Arial, sans-serif", textAlign: "center"
-    }}>
-      <audio ref={audioRef} src="http://127.0.0.1:5000/static/music.mp3" loop />
+    <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: "100vh", fontFamily: "sans-serif", textAlign: "center", backgroundColor: "#f9f9f9", padding: "20px" }}>
       
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2 style={{ margin: 0 }}>Multiplication Task</h2>
-        <button onClick={handleExit} style={{ backgroundColor: "#ff4d4d", color: "white", padding: "8px 16px", border: "none", borderRadius: "5px", cursor: "pointer" }}>
-          Exit Game 🛑
+      {phase !== "result" && phase !== "notes" && (
+        <button 
+          onClick={() => navigate("/")}
+          style={{ position: "absolute", top: "20px", left: "20px", padding: "10px 20px", fontSize: "1.2rem", cursor: "pointer", borderRadius: "8px", backgroundColor: "#dc3545", color: "white", border: "none" }}
+        >
+        Quit & Return
         </button>
-      </div>
-
-      <div style={{ marginBottom: "30px", padding: "12px", backgroundColor: "#f9f9f9", borderRadius: "8px", border: "1px solid #ddd" }}>
-        <button onClick={toggleMusic} style={{ marginRight: "15px", padding: "8px 16px", cursor: "pointer", borderRadius: "5px" }}>
-          {isPlaying ? "Pause Music ⏸️" : "Play Music ▶️"}
-        </button>
-        <span style={{ color: "gray", fontWeight: "bold" }}>Current Speed: {playbackSpeed}x</span>
-      </div>
-
-      <p style={{ fontSize: "36px", fontWeight: "bold", margin: "30px 0" }}>
-        {questions[currentQuestionIndex].question}
-      </p>
-      
-      <form onSubmit={handleSubmit} style={{ marginTop: "20px" }}>
-        <input
-          type="number"
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Answer"
-          autoFocus
-          style={{ padding: "12px", fontSize: "20px", width: "120px", textAlign: "center", marginRight: "15px", borderRadius: "5px", border: "2px solid #ccc" }}
-        />
-        <button type="submit" style={{ padding: "12px 24px", fontSize: "18px", cursor: "pointer", borderRadius: "5px", backgroundColor: "#4CAF50", color: "white", border: "none" }}>
-          Submit
-        </button>
-      </form>
-      
-      {feedback && (
-        <p style={{ marginTop: "20px", fontSize: "16px", fontWeight: "bold", color: feedback.includes("Correct") ? "#4CAF50" : "#ff4d4d" }}>
-          {feedback}
-        </p>
       )}
+
+      <h1 style={{ fontSize: "4rem", marginBottom: "10px" }}>Memory Game</h1>
+      
+      {(phase === "memorize" || phase === "pause" || phase === "input") && (
+        <h3 style={{ fontSize: "2rem", color: "#555", marginTop: "0", marginBottom: "30px" }}>Round {round} of {NUM_ROUNDS}</h3>
+      )}
+      
+      {phase === "memorize" && (
+        <div>
+          <h2 style={{ fontSize: "3rem" }}>Memorize these numbers!</h2>
+          <div style={{ fontSize: "5rem", margin: "40px", letterSpacing: "15px", fontWeight: "bold" }}>{numbers.join(" ")}</div>
+          <h3 style={{ fontSize: "2.5rem", color: "red" }}>Time left: {timeLeft}s</h3>
+        </div>
+      )}
+
+      {phase === "pause" && (
+        <div>
+          <h2 style={{ fontSize: "4rem", color: "#ff8c00" }}>Get Ready...</h2>
+          <h3 style={{ fontSize: "3rem" }}>Starting in {timeLeft}s</h3>
+        </div>
+      )}
+
+      {phase === "input" && (
+        <div>
+          <h2 style={{ fontSize: "2.5rem" }}>Enter the numbers, then press Enter:</h2>
+          <div style={{ display: "flex", justifyContent: "center", gap: "15px", flexWrap: "wrap", margin: "40px" }}>
+            {userInputs.map((val, idx) => (
+              <input
+                key={idx}
+                ref={(el) => (inputRefs.current[idx] = el)}
+                type="text"
+                value={val}
+                onChange={(e) => handleInputChange(idx, e.target.value)}
+                onKeyDown={handleKeyDown}
+                style={{ width: "80px", height: "80px", fontSize: "3rem", textAlign: "center", borderRadius: "10px", border: "2px solid #ccc" }}
+              />
+            ))}
+          </div>
+          <button onClick={handleRoundSubmit} style={{ padding: "15px 40px", fontSize: "2rem", cursor: "pointer", borderRadius: "10px", backgroundColor: "#007bff", color: "white", border: "none" }}>
+            {round < NUM_ROUNDS ? "Next Round" : "Finish Rounds"}
+          </button>
+        </div>
+      )}
+
+      {/* --- NEW: Results display phase, showing the button to proceed to notes --- */}
+      {phase === "result" && (
+        <div>
+          <h2 style={{ fontSize: "4rem", color: totalScore > (NUM_ITEMS * NUM_ROUNDS / 2) ? "green" : "red" }}>
+            {totalScore === (NUM_ITEMS * NUM_ROUNDS) ? "Perfect! 🎉" : `You got ${totalScore} out of ${NUM_ITEMS * NUM_ROUNDS} correct!`}
+          </h2>
+          <h3 style={{ fontSize: "3rem", color: "#555", margin: "10px 0 10px 0" }}>
+            Accuracy: {Math.round((totalScore / (NUM_ITEMS * NUM_ROUNDS)) * 100)}%
+          </h3>
+          <h3 style={{ fontSize: "2rem", color: "#007bff", margin: "0 0 30px 0" }}>
+            Total Time: {totalTime.toFixed(2)} seconds
+          </h3>
+          <button onClick={() => setPhase("notes")} style={{ padding: "15px 40px", fontSize: "2rem", marginTop: "40px", cursor: "pointer", borderRadius: "10px", backgroundColor: "#007bff", color: "white", border: "none" }}>
+            Continue to Notes
+          </button>
+        </div>
+      )}
+
+      {/* --- NEW: Notes phase is now at the very end, leading to the final save --- */}
+      {phase === "notes" && (
+        <div style={{ maxWidth: "800px", width: "100%" }}>
+          <h2 style={{ fontSize: "3rem", color: "#333" }}>Session Complete!</h2>
+          <p style={{ fontSize: "1.5rem", marginBottom: "20px" }}>Please log any experimental notes or observations below before saving your data.</p>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Type your notes here..."
+            rows={6}
+            style={{ width: "100%", padding: "15px", fontSize: "1.5rem", borderRadius: "10px", border: "2px solid #ccc", marginBottom: "20px", resize: "vertical" }}
+          />
+          <button onClick={handleFinalSubmit} style={{ padding: "15px 40px", fontSize: "2rem", cursor: "pointer", borderRadius: "10px", backgroundColor: "#28a745", color: "white", border: "none" }}>
+            Save Data & Return Home
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
-
-export default QuestionPage;
