@@ -9,7 +9,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<FormPage />} />
-        <Route path="/questions" element={<QuestionPage />} />
+        <Route path="/question" element={<QuestionPage />} />
       </Routes>
     </BrowserRouter>
   );
